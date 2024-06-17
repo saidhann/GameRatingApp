@@ -1,0 +1,35 @@
+﻿@page "/database"
+@inherits DatabaseBase
+@using ClassLibrary.Entities
+
+<PageTitle>DataBase</PageTitle>
+
+@if(Tables == null)
+{
+	<h3>Loading tables...</h3>
+}
+else
+{
+	<h3 class="mb-5">Tables</h3>
+
+	var tableCount = Tables.Count();
+
+	@if(tableCount > 0)
+	{
+		const int itemsPerRow = 1;
+		var tableRow = new List<TableItem>();
+		@for(int i = 0; i<tableCount;i++)
+		{
+			tableRow = Tables.Skip(i * itemsPerRow).Take(itemsPerRow).ToList();
+
+			<div class="row mt-3">
+				@foreach(var item in tableRow)
+				{
+					<div class="col-md-3 mb-2">
+						@item.TableName
+						</div>
+				}
+			</div>
+		}
+	}
+}

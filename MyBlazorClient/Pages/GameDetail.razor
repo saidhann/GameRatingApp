@@ -1,0 +1,35 @@
+﻿@page "/gamedetail/{gameTitle}"
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+@using ClassLibrary.Entities
+@using MyBlazorClient.Services
+
+@code {
+    [Parameter]
+    public string GameTitle { get; set; }
+    private GameItem game;
+
+    [Inject]
+    public IApiComunicationService ApiComunicationService { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        GameSearchItem currentSearch = new GameSearchItem(GameTitle, "any", "any", HowToSortEnum.NotSort);
+        IEnumerable<GameItem> gameList = await ApiComunicationService.searchGame(currentSearch);
+        game = gameList.First();
+    }
+}
+
+<div class="game-detail">
+    @if (game == null)
+    {
+        <p>Loading...</p>
+    }
+    else
+    {
+        <h1>@game.Title</h1>
+        <p>@game.Description</p>
+        <!-- Add more game details here -->
+    }
+</div>
+

@@ -1,0 +1,39 @@
+﻿@page "/register"
+@inject NavigationManager Navigation
+@inject MyBlazorClient.Services.CustomAuthenticationStateProvider AuthStateProvider
+@using MyBlazorClient.Services
+@using ClassLibrary.Entities
+
+<EditForm Model="@registerModel" OnValidSubmit="HandleRegister">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div>
+        <label>Username:</label>
+        <InputText @bind-Value="registerModel.Login" />
+    </div>
+    <div>
+        <label>Password:</label>
+        <InputText @bind-Value="registerModel.Password" type="password" />
+    </div>
+    <button type="submit">Register</button>
+</EditForm>
+
+@code {
+    private LoginPasswordItem registerModel = new LoginPasswordItem();
+    [Inject]
+    public IApiComunicationService ApiComunicationService { get; set; }
+
+    private async void HandleRegister()
+    {
+        // Replace with actual authentication logic
+        if (await ApiComunicationService.Register(registerModel))
+        {
+            AuthStateProvider.MarkUserAsAuthenticated(registerModel.Login);
+            Navigation.NavigateTo("/");
+        }
+        else
+        {
+            
+        }
+    }
+}

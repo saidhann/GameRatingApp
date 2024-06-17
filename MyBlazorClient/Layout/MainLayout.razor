@@ -1,0 +1,219 @@
+﻿@inherits LayoutComponentBase
+@inject MyBlazorClient.Services.CustomAuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@using ClassLibrary.Entities
+@using MyBlazorClient.Services
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <AuthorizeView>
+            <Authorized>
+                <div class="top-row px-4">
+                    <div class="search-bar">
+                        <input type="text" placeholder="Search..." @bind="searchQuery" @onfocus="OnInputFocus" @onblur='() => searchBarFocus = false' @oninput="OnInputChange" />
+                        <div class="search-results" style="display:@(!searchBarFocus  ? "none" : "block");">
+                            @if (filteredItems != null && filteredItems.Any())
+                            {
+                                var gamesToshow = new List<GameItem>();
+                                gamesToshow = filteredItems.ToList();
+                                <div class="search-results-container">
+                                    <div class="search-results-container">
+                                        @foreach (var item in gamesToshow)
+                                        {
+                                            <button @onclick="() => SelectGame(item.Title)">@item.Title</button>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <p>No items found.</p>
+                            }
+                        </div>
+                    </div>
+                    <div class="dropdown">
+                        <button class="dropdown-button" @onclick='() => isSortDropdownOpen=!isSortDropdownOpen'>Sorting Options ▼</button>
+                        <div class="dropdown-menu" style="display: @(isSortDropdownOpen ? "block" : "none")">
+                            <button @onclick="ToggleAuthorSort" class="@(gameSearch.HowToSort==HowToSortEnum.AuthorAscending||gameSearch.HowToSort==HowToSortEnum.AuthorDescending ? "highlight" : "")">
+                                Sort by Author @(GetSortIndicator(HowToSortEnum.AuthorAscending, HowToSortEnum.AuthorDescending))
+                            </button>
+                            <button @onclick="ToggleRatingSort" class="@(gameSearch.HowToSort==HowToSortEnum.RatingAscending||gameSearch.HowToSort==HowToSortEnum.RatingDescending ? "highlight" : "")">
+                                Sort by Rating @(GetSortIndicator(HowToSortEnum.RatingAscending, HowToSortEnum.RatingDescending))
+                            </button>
+                            <button @onclick="ResetSort">Reset Sort</button>
+                        </div>
+                    </div>
+                    <div class="dropdown">
+                        <button class="dropdown-button" @onclick='() => isGenreDropdownOpen=!isGenreDropdownOpen'>Filtering by Genre ▼</button>
+                        <div class="dropdown-menu" style="display: @(isGenreDropdownOpen ? "block" : "none")">
+                            @if (genreList != null && genreList.Any())
+                            {
+                                <div class="search-results-container">
+                                    <div class="search-results-container">
+                                        @foreach (var item in genreList)
+                                        {
+                                            <button @onclick="() => ToggleGenreFilter(item)" class="@(gameSearch.Genre==item ? "highlight" : "")">
+                                                @item
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <p>No items found.</p>
+                            }
+                            <button @onclick="ResetSort">Reset Sort</button>
+                        </div>
+                    </div>
+                    <div class="dropdown">
+                        <button class="dropdown-button" @onclick='() => isPegiDropdownOpen=!isPegiDropdownOpen'>Filtering by PEGI ▼</button>
+                        <div class="dropdown-menu" style="display: @(isPegiDropdownOpen ? "block" : "none")">
+                            <button @onclick='() => TogglePegiFilter("PEGI 3")' class="@(gameSearch.Pegi == "PEGI 3" ? "highlight" : "")">
+                                PEGI 3 
+                            </button>
+                            <button @onclick='() => TogglePegiFilter("PEGI 7")' class="@(gameSearch.Pegi == "PEGI 7" ? "highlight" : "")">
+                                PEGI 7 
+                            </button>
+                            <button @onclick='() => TogglePegiFilter("PEGI 12")' class="@(gameSearch.Pegi == "PEGI 12" ? "highlight" : "")">
+                                PEGI 12 
+                            </button>
+                            <button @onclick='() => TogglePegiFilter("PEGI 16")' class="@(gameSearch.Pegi == "PEGI 16" ? "highlight" : "")">
+                                PEGI 16 
+                            </button>
+                            <button @onclick='() => TogglePegiFilter("PEGI 18")' class="@(gameSearch.Pegi == "PEGI 18" ? "highlight" : "")">
+                                PEGI 18 
+                            </button>
+                            <button @onclick='() => TogglePegiFilter("any")'>Reset Filter</button>
+                        </div>
+                    </div>
+                    <div class="logout-button">
+                        <button @onclick="Logout">Logout</button>
+                    </div>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    private string searchQuery = "";
+    private IEnumerable<string> genreList;
+    private IEnumerable<GameItem> filteredItems;
+    private GameSearchItem gameSearch = new GameSearchItem("","any","any",HowToSortEnum.NotSort);
+    private bool isSortDropdownOpen = false;
+    private bool isGenreDropdownOpen = false;
+    private bool isPegiDropdownOpen = false;
+    private bool searchBarFocus = false;
+    [Inject]
+    public IApiComunicationService apiComunicationService{ get; set; }
+
+    private async Task OnInputFocus()
+    {
+        searchBarFocus = true;
+        await PerformSearch();
+    }
+
+    private async Task OnInputChange(ChangeEventArgs e)
+    {
+        searchQuery = e.Value.ToString();
+        await PerformSearch();
+    }
+
+    private async Task PerformSearch()
+    {
+        gameSearch.Title = searchQuery;
+        filteredItems = await apiComunicationService.searchGame(gameSearch);
+    }
+
+    private void SelectGame(string item)
+    {
+        Navigation.NavigateTo($"/gamedetail/{item}");
+    }
+
+    private async Task ToggleAuthorSort()
+    {
+        // Toggle between AuthorAscending and AuthorDescending
+        if (gameSearch.HowToSort == HowToSortEnum.AuthorAscending)
+        {
+            gameSearch.HowToSort = HowToSortEnum.AuthorDescending;
+        }
+        else
+        {
+            gameSearch.HowToSort = HowToSortEnum.AuthorAscending;
+        }
+
+        await PerformSearch(); // Perform search with new sort option
+    }
+
+    private async Task ToggleRatingSort()
+    {
+        // Toggle between RatingAscending and RatingDescending
+        if (gameSearch.HowToSort == HowToSortEnum.RatingAscending)
+        {
+            gameSearch.HowToSort = HowToSortEnum.RatingDescending;
+        }
+        else
+        {
+            gameSearch.HowToSort = HowToSortEnum.RatingAscending;
+        }
+
+        await PerformSearch(); // Perform search with new sort option
+    }
+
+    private async Task TogglePegiFilter(string myPegi)
+    {
+        // Toggle between RatingAscending and RatingDescending
+        gameSearch.Pegi = myPegi;
+
+        await PerformSearch(); // Perform search with new sort option
+    }
+
+    private async Task ToggleGenreFilter(string genre)
+    {
+        // Toggle between RatingAscending and RatingDescending
+        gameSearch.Genre = genre;
+
+        await PerformSearch(); // Perform search with new sort option
+    }
+
+    private async Task ResetSort()
+    {
+        gameSearch.HowToSort = HowToSortEnum.NotSort;
+        await PerformSearch(); // Perform search with reset sort
+    }
+
+    private string GetSortIndicator(HowToSortEnum sortOption1, HowToSortEnum sortOption2)
+    {
+        if (gameSearch.HowToSort == sortOption1)
+        {
+            return "Asc";
+        }
+        else if (gameSearch.HowToSort == sortOption2)
+        {
+            return "Desc";
+        }
+
+        return "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        genreList = await apiComunicationService.GetAllGenres();
+        filteredItems = await apiComunicationService.searchGame(gameSearch);
+    }
+
+    private void Logout()
+    {
+        AuthStateProvider.MarkUserAsLoggedOut();
+        Navigation.NavigateTo("/");
+    }
+}
+
