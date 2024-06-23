@@ -17,7 +17,6 @@ namespace DatabaseApi.Services
         {
             _configuration = configuration;
         }
-
         public string GetConnectionString()
         {
             return this._configuration.GetConnectionString("DefaultConnection");
@@ -27,10 +26,41 @@ namespace DatabaseApi.Services
             using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
             {
                 con.Open();
-                MySqlCommand cmd = new MySqlCommand($"INSERT INTO Uzytkownicy (ID_uzytkownika, Login, Haslo, Data_rejestracji) SELECT IFNULL(MAX(ID_uzytkownika), 0) + 1, '{logpas.Login}', '{logpas.Password}', NOW() FROM Uzytkownicy;",con);
-                MySqlDataReader rdr = cmd.ExecuteReader();
+
+                // Retrieve the next ID_uzytkownika
+                int nextUserId = GetNextUserId(con);
+
+                // Insert the new user into Uzytkownicy table
+                string query = "INSERT INTO Uzytkownicy (ID_uzytkownika, Login, Haslo, Data_rejestracji) " +
+                               "VALUES (@UserId, @Login, @Password, NOW())";
+
+                using (MySqlCommand cmd = new MySqlCommand(query, con))
+                {
+                    cmd.Parameters.AddWithValue("@UserId", nextUserId);
+                    cmd.Parameters.AddWithValue("@Login", logpas.Login);
+                    cmd.Parameters.AddWithValue("@Password", logpas.Password);
+                    cmd.ExecuteNonQuery();
+                }
+
                 con.Close();
             }
+        }
+        private int GetNextUserId(MySqlConnection con)
+        {
+            int nextUserId = 0;
+            string query = "SELECT IFNULL(MAX(ID_uzytkownika), 0) + 1 AS NextUserId FROM Uzytkownicy";
+
+            using (MySqlCommand cmd = new MySqlCommand(query, con))
+            {
+                MySqlDataReader rdr = cmd.ExecuteReader();
+                if (rdr.Read())
+                {
+                    nextUserId = rdr.GetInt32("NextUserId");
+                }
+                rdr.Close();
+            }
+
+            return nextUserId;
         }
         public IEnumerable<TableItem> ShowTables()
         {
@@ -127,16 +157,27 @@ namespace DatabaseApi.Services
             using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
             {
                 con.Open();
-                using (MySqlCommand cmd = new MySqlCommand($"SELECT Haslo FROM Uzytkownicy WHERE Login = '{logpas.Login}';", con))
-                {
 
-                    MySqlDataReader rdr = cmd.ExecuteReader();
-                    if (rdr.Read())
+                // Retrieve the password for the given login
+                string query = "SELECT Haslo FROM Uzytkownicy WHERE Login = @Login";
+                using (MySqlCommand cmd = new MySqlCommand(query, con))
+                {
+                    cmd.Parameters.AddWithValue("@Login", logpas.Login);
+                    using (MySqlDataReader rdr = cmd.ExecuteReader())
                     {
-                        string passwordBuff = new string(rdr.GetString(0));
-                        if(passwordBuff.Equals(logpas.Password)) answer = true;
+                        if (rdr.Read())
+                        {
+                            string storedPassword = rdr.GetString("Haslo");
+
+                            // Compare the stored password with the provided password
+                            if (storedPassword.Equals(logpas.Password))
+                            {
+                                answer = true;
+                            }
+                        }
                     }
                 }
+
                 con.Close();
             }
             return answer;
@@ -147,9 +188,9 @@ namespace DatabaseApi.Services
             using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
             {
                 con.Open();
-                using (MySqlCommand cmd = new MySqlCommand($"SELECT COUNT(*) FROM Uzytkownicy WHERE Login = '{logpas.Login}';", con))
+                using (MySqlCommand cmd = new MySqlCommand($"SELECT COUNT(*) FROM Uzytkownicy WHERE Login = @Login;", con))
                 {
-
+                    cmd.Parameters.AddWithValue("@Login", logpas.Login);
                     MySqlDataReader rdr = cmd.ExecuteReader();
                     if (rdr.Read())
                     {
@@ -163,19 +204,32 @@ namespace DatabaseApi.Services
         }
         public IEnumerable<GameItem> SearchGame(GameSearchItem gameSearchItem)
         {
+            string command = "SELECT Gry.Tytul, Gry.Data_wydania, Gry.Opis " +
+                             "FROM Gry " +
+                             "JOIN Kategorie_wiekowe ON Gry.ID_kategorii_wiekowej = Kategorie_wiekowe.ID_kategorii_wiekowej " +
+                             "JOIN Gatunki ON Gry.ID_gatunku = Gatunki.ID_gatunku " +
+                             "JOIN Wydawcy ON Gry.ID_wydawcy = Wydawcy.ID_wydawcy " +
+                             "LEFT JOIN Oceny ON Gry.ID_gry = Oceny.ID_gry " +
+                             "WHERE Gry.Tytul LIKE @Title";
 
-            string command = "SELECT Gry.Tytul, Gry.Data_wydania, Gry.Opis\r\n" +
-                    "FROM Gry\r\n" +
-                    "JOIN Kategorie_wiekowe ON Gry.ID_kategorii_wiekowej = Kategorie_wiekowe.ID_kategorii_wiekowej\r\n" +
-                    "JOIN Gatunki ON Gry.ID_gatunku = Gatunki.ID_gatunku\r\n" +
-                    "JOIN Wydawcy ON Gry.ID_wydawcy = Wydawcy.ID_wydawcy\r\n" +
-                    "LEFT JOIN Oceny ON Gry.ID_gry = Oceny.ID_gry\r\n" +
-                    $"WHERE Gry.Tytul LIKE '{gameSearchItem.Title}%'\r\n";
+            List<MySqlParameter> parameters = new List<MySqlParameter>
+    {
+        new MySqlParameter("@Title", gameSearchItem.Title + "%")
+    };
 
-            if (!(gameSearchItem.Pegi == "any")) command += $"AND Kategorie_wiekowe.Nazwa_kategorii = '{gameSearchItem.Pegi}'\r\n";
-            if (!(gameSearchItem.Genre == "any")) command += $"AND Gatunki.Nazwa_gatunku = '{gameSearchItem.Genre}'\r\n";
+            if (gameSearchItem.Pegi != "any")
+            {
+                command += " AND Kategorie_wiekowe.Nazwa_kategorii = @Pegi";
+                parameters.Add(new MySqlParameter("@Pegi", gameSearchItem.Pegi));
+            }
 
-            command+= "GROUP BY Gry.ID_gry\r\n";
+            if (gameSearchItem.Genre != "any")
+            {
+                command += " AND Gatunki.Nazwa_gatunku = @Genre";
+                parameters.Add(new MySqlParameter("@Genre", gameSearchItem.Genre));
+            }
+
+            command += " GROUP BY Gry.ID_gry";
 
             switch (gameSearchItem.HowToSort)
             {
@@ -189,9 +243,10 @@ namespace DatabaseApi.Services
                     command += " ORDER BY AVG(Oceny.Ocena) ASC";
                     break;
                 case HowToSortEnum.RatingDescending:
-                    command+= " ORDER BY AVG(Oceny.Ocena) DESC";
+                    command += " ORDER BY AVG(Oceny.Ocena) DESC";
                     break;
                 case HowToSortEnum.NotSort:
+                default:
                     break;
             }
 
@@ -201,15 +256,20 @@ namespace DatabaseApi.Services
                 con.Open();
                 using (MySqlCommand cmd = new MySqlCommand(command, con))
                 {
-                    MySqlDataReader rdr = cmd.ExecuteReader();
-                    while (rdr.Read())
+                    cmd.Parameters.AddRange(parameters.ToArray());
+
+                    using (MySqlDataReader rdr = cmd.ExecuteReader())
                     {
-                        GameItem tempTableName = new GameItem(rdr.GetString("Tytul"),rdr.GetDateTime("Data_wydania"),rdr.GetString("Opis"));
-                        tableList.Add(tempTableName);
+                        while (rdr.Read())
+                        {
+                            GameItem tempTableName = new GameItem(rdr.GetString("Tytul"), rdr.GetDateTime("Data_wydania"), rdr.GetString("Opis"));
+                            tableList.Add(tempTableName);
+                        }
                     }
                 }
                 con.Close();
             }
+
             return tableList;
         }
         public bool AddComment(AddCommentItem comment)
@@ -218,38 +278,72 @@ namespace DatabaseApi.Services
             int userId = -1;
             int commentId = -1;
             bool answer = false;
+
             using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
             {
                 con.Open();
-                MySqlCommand cmd = new MySqlCommand($"SELECT ID_gry FROM Gry WHERE Tytul = '{comment.GameName}'", con);
-                MySqlDataReader rdr = cmd.ExecuteReader();
-                if(rdr.Read()) gameId = rdr.GetInt32("ID_gry");
-                con.Close();
 
-                con.Open();
-                cmd = new MySqlCommand($"SELECT ID_uzytkownika FROM Uzytkownicy WHERE Login = '{comment.Login}'", con);
-                rdr = cmd.ExecuteReader();
-                if(rdr.Read()) userId = rdr.GetInt32("ID_uzytkownika");
-                con.Close() ;
+                // Retrieve gameId based on comment.GameName
+                string queryGameId = "SELECT ID_gry FROM Gry WHERE Tytul = @GameName";
+                using (MySqlCommand cmd = new MySqlCommand(queryGameId, con))
+                {
+                    cmd.Parameters.AddWithValue("@GameName", comment.GameName);
+                    MySqlDataReader rdr = cmd.ExecuteReader();
+                    if (rdr.Read())
+                    {
+                        gameId = rdr.GetInt32("ID_gry");
+                    }
+                    rdr.Close();
+                }
 
-                con.Open();
-                cmd = new MySqlCommand("SELECT IFNULL(MAX(ID_komentarza), 0) FROM Komentarze",con);
-                rdr = cmd.ExecuteReader();
-                if (rdr.Read()) commentId = rdr.GetInt32(0);
-                commentId++;
-                con.Close();
+                // Retrieve userId based on comment.Login
+                string queryUserId = "SELECT ID_uzytkownika FROM Uzytkownicy WHERE Login = @Login";
+                using (MySqlCommand cmd = new MySqlCommand(queryUserId, con))
+                {
+                    cmd.Parameters.AddWithValue("@Login", comment.Login);
+                    MySqlDataReader rdr = cmd.ExecuteReader();
+                    if (rdr.Read())
+                    {
+                        userId = rdr.GetInt32("ID_uzytkownika");
+                    }
+                    rdr.Close();
+                }
 
+                // Retrieve next commentId
+                string queryMaxCommentId = "SELECT IFNULL(MAX(ID_komentarza), 0) AS MaxCommentId FROM Komentarze";
+                using (MySqlCommand cmd = new MySqlCommand(queryMaxCommentId, con))
+                {
+                    MySqlDataReader rdr = cmd.ExecuteReader();
+                    if (rdr.Read())
+                    {
+                        commentId = rdr.GetInt32("MaxCommentId");
+                    }
+                    commentId++;
+                    rdr.Close();
+                }
 
-                con.Open() ;
-                if (userId < 0 || gameId < 0 || commentId < 0) return false;
-                cmd = new MySqlCommand($"INSERT INTO Komentarze (ID_komentarza, ID_uzytkownika, ID_gry, Tresc_komentarza, Data_dodania) VALUES ('{commentId}','{userId}', '{gameId}', '{comment.Comment}', CURDATE());", con);
-                rdr= cmd.ExecuteReader();
-                answer = true;
+                // Insert comment into Komentarze table
+                string queryInsertComment = "INSERT INTO Komentarze (ID_komentarza, ID_uzytkownika, ID_gry, Tresc_komentarza, Data_dodania) " +
+                                            "VALUES (@CommentId, @UserId, @GameId, @CommentText, CURDATE())";
+                using (MySqlCommand cmd = new MySqlCommand(queryInsertComment, con))
+                {
+                    cmd.Parameters.AddWithValue("@CommentId", commentId);
+                    cmd.Parameters.AddWithValue("@UserId", userId);
+                    cmd.Parameters.AddWithValue("@GameId", gameId);
+                    cmd.Parameters.AddWithValue("@CommentText", comment.Comment);
+                    int rowsAffected = cmd.ExecuteNonQuery();
+                    if (rowsAffected > 0)
+                    {
+                        answer = true;
+                    }
+                }
 
                 con.Close();
             }
+
             return answer;
         }
+
         public bool AddRating(AddRatingItem rating)
         {
             int gameId = -1;
