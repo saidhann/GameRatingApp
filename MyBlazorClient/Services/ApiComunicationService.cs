@@ -1,6 +1,7 @@
 ﻿using ClassLibrary.Entities;
 using Microsoft.AspNetCore.Components;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Net.Http.Json;
 
 
@@ -14,7 +15,6 @@ namespace MyBlazorClient.Services
         {
             _http = http;
         }
-
         public async Task<IEnumerable<TableItem>> GiveTables()
         {
             try
@@ -26,7 +26,6 @@ namespace MyBlazorClient.Services
                 throw;
             }
         }
-
         public async Task<IEnumerable<string>> GetAllGenres()
         {
             try
@@ -39,7 +38,6 @@ namespace MyBlazorClient.Services
                 throw;
             }
         }
-
         public async Task<bool> Login(LoginPasswordItem logpas)
         {
             var response = await _http.PostAsJsonAsync<LoginPasswordItem>("api/Login", logpas);
@@ -52,7 +50,6 @@ namespace MyBlazorClient.Services
                 return false;
             }
         }
-
         public async Task<bool> Register(LoginPasswordItem logpas)
         {
             var response = await _http.PostAsJsonAsync<LoginPasswordItem>("api/Register", logpas);
@@ -65,8 +62,7 @@ namespace MyBlazorClient.Services
                 return false;
             }
         }
-
-        public async Task<IEnumerable<GameItem>> searchGame(GameSearchItem gsItem)
+        public async Task<IEnumerable<GameItem>> SearchGame(GameSearchItem gsItem)
         {
             var response = await _http.PostAsJsonAsync<GameSearchItem>("api/GameSearch", gsItem);
             if (response.IsSuccessStatusCode)
@@ -74,6 +70,44 @@ namespace MyBlazorClient.Services
                 return await response.Content.ReadFromJsonAsync<IEnumerable<GameItem>>();
             }
             return new List<GameItem>();
+        }
+        public async Task<IEnumerable<CommentItem>> GetComments(string gameName)
+        {
+            GameItem temp = new GameItem(gameName,DateTime.Now,"");
+            var response = await _http.PostAsJsonAsync<GameItem>("api/Comments", temp);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<IEnumerable<CommentItem>>();
+            }
+            return new List<CommentItem>();
+        }
+        public async Task<IEnumerable<RatingItem>> GetRatings(string gameName)
+        {
+            GameItem temp = new GameItem(gameName, DateTime.Now, "");
+            var response = await _http.PostAsJsonAsync<GameItem>("api/Ratings", temp);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<IEnumerable<RatingItem>>();
+            }
+            return new List<RatingItem>();
+        }
+        public async Task<bool> AddComment(AddCommentItem comment)
+        {
+            var response = await _http.PostAsJsonAsync<AddCommentItem>("api/AddComment", comment);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<bool>();
+            }
+            return false;
+        }
+        public async Task<bool> AddRating(AddRatingItem rating)
+        {
+            var response = await _http.PostAsJsonAsync<AddRatingItem>("api/AddRating", rating);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<bool>();
+            }
+            return false;
         }
     }
 }

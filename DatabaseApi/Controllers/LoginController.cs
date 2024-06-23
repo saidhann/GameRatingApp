@@ -6,7 +6,7 @@ namespace DatabaseApi.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class LoginController : ControllerBase
+    public class LoginController : Controller
     {
         private readonly IMySqlService _mySqlService;
 

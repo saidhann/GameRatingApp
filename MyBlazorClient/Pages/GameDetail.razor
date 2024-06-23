@@ -3,33 +3,262 @@
 @inject NavigationManager Navigation
 @using ClassLibrary.Entities
 @using MyBlazorClient.Services
+@inject MyBlazorClient.Services.CustomAuthenticationStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Collections.Generic;
+@using System.Linq;
+
+<div class="game-detail">
+    <div class="game-info">
+        @if (game == null)
+        {
+            <p>Loading...</p>
+        }
+        else
+        {
+            <h1>@game.Title</h1>
+            <div class="star-rating">
+                <span class="star" @onclick="() => RateGame(1)" @onmouseover="() => HighlightStars(1)" @onmouseout="ResetStars"
+                      style="color:@(1 <= (highlightedRating > 0 ? highlightedRating : currentRating) ? "gold" : "gray")">★</span>
+                <span class="star" @onclick="() => RateGame(2)" @onmouseover="() => HighlightStars(2)" @onmouseout="ResetStars"
+                      style="color:@(2 <= (highlightedRating > 0 ? highlightedRating : currentRating) ? "gold" : "gray")">★</span>
+                <span class="star" @onclick="() => RateGame(3)" @onmouseover="() => HighlightStars(3)" @onmouseout="ResetStars"
+                      style="color:@(3 <= (highlightedRating > 0 ? highlightedRating : currentRating) ? "gold" : "gray")">★</span>
+                <span class="star" @onclick="() => RateGame(4)" @onmouseover="() => HighlightStars(4)" @onmouseout="ResetStars"
+                      style="color:@(4 <= (highlightedRating > 0 ? highlightedRating : currentRating) ? "gold" : "gray")">★</span>
+                <span class="star" @onclick="() => RateGame(5)" @onmouseover="() => HighlightStars(5)" @onmouseout="ResetStars"
+                      style="color:@(5 <= (highlightedRating > 0 ? highlightedRating : currentRating) ? "gold" : "gray")">★</span>
+                <span class="star" @onclick="() => RateGame(6)" @onmouseover="() => HighlightStars(6)" @onmouseout="ResetStars"
+                      style="color:@(6 <= (highlightedRating > 0 ? highlightedRating : currentRating) ? "gold" : "gray")">★</span>
+                <span class="star" @onclick="() => RateGame(7)" @onmouseover="() => HighlightStars(7)" @onmouseout="ResetStars"
+                      style="color:@(7 <= (highlightedRating > 0 ? highlightedRating : currentRating) ? "gold" : "gray")">★</span>
+                <span class="star" @onclick="() => RateGame(8)" @onmouseover="() => HighlightStars(8)" @onmouseout="ResetStars"
+                      style="color:@(8 <= (highlightedRating > 0 ? highlightedRating : currentRating) ? "gold" : "gray")">★</span>
+                <span class="star" @onclick="() => RateGame(9)" @onmouseover="() => HighlightStars(9)" @onmouseout="ResetStars"
+                      style="color:@(9 <= (highlightedRating > 0 ? highlightedRating : currentRating) ? "gold" : "gray")">★</span>
+                <span class="star" @onclick="() => RateGame(10)" @onmouseover="() => HighlightStars(10)" @onmouseout="ResetStars"
+                      style="color:@(10 <= (highlightedRating > 0 ? highlightedRating : currentRating) ? "gold" : "gray")">★</span>
+            </div>
+            <p>@game.Date</p>
+            <p>@game.Description</p>
+            <!-- Add more game details here -->
+        }
+    </div>
+
+    <div class="comments-section">
+        @if (comments == null)
+        {
+            <p>Loading comments...</p>
+        }
+        else
+        {
+            <h2>Comments</h2>
+            @if (isUserAuthenticated)
+            {
+                <div class="add-comment">
+                    <h3>Add a Comment</h3>
+                    <textarea @bind="newCommentText" placeholder="Write your comment here..."></textarea>
+                    <button @onclick="AddComment">Post Comment</button>
+                </div>
+            }
+            <div class="comments-container">
+                @if (!comments.Any())
+                {
+                    <p>No comments yet. Be the first to comment!</p>
+                }
+                else
+                {
+                    @foreach (var comment in comments)
+                    {
+                        <div class="comment">
+                            <p><strong>@comment.Login</strong> (@comment.Date.ToShortDateString()):</p>
+                            <p>@comment.Content</p>
+                        </div>
+                    }
+                }
+            </div>
+        }
+    </div>
+
+    <div class="average-rating">
+        @if (averageRating > 0)
+        {
+            <h3>Average Rating</h3>
+            <div class="rating-display">
+                @{
+                    int fullStars = (int)Math.Floor(averageRating);
+                    int halfStars = (averageRating - fullStars) >= 0.5 ? 1 : 0;
+                    int emptyStars = 5 - fullStars - halfStars;
+
+                    for (int i = 0; i < fullStars; i++)
+                    {
+                        <span class="star-filled-large">★</span>
+                    }
+                    for (int i = 0; i < halfStars; i++)
+                    {
+                        <span class="star-half-large">★</span>
+                    }
+                    for (int i = 0; i < emptyStars; i++)
+                    {
+                        <span class="star-empty-large">★</span>
+                    }
+                }
+            </div>
+        }
+        else
+        {
+            <p>No ratings yet.</p>
+        }
+    </div>
+</div>
 
 @code {
     [Parameter]
     public string GameTitle { get; set; }
     private GameItem game;
+    private IEnumerable<CommentItem> comments;
+    private string newCommentText;
+    private bool isUserAuthenticated = false;
+    private string currentUsername;
+    private int currentRating = 0;
+    private int highlightedRating = 0;
+    private double averageRating = 0;
 
     [Inject]
     public IApiComunicationService ApiComunicationService { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        GameSearchItem currentSearch = new GameSearchItem(GameTitle, "any", "any", HowToSortEnum.NotSort);
-        IEnumerable<GameItem> gameList = await ApiComunicationService.searchGame(currentSearch);
-        game = gameList.First();
+        await CheckUserAuthentication();
+        await LoadData();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await CheckUserAuthentication();
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        await LoadGame();
+        await LoadComments();
+        await GetAverageRating();
+    }
+
+    private async Task LoadGame()
+    {
+        try
+        {
+            GameSearchItem currentSearch = new GameSearchItem(GameTitle, "any", "any", HowToSortEnum.NotSort);
+            IEnumerable<GameItem> gameList = await ApiComunicationService.SearchGame(currentSearch);
+            game = gameList.FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading game details: {ex.Message}");
+        }
+    }
+
+    private async Task LoadComments()
+    {
+        try
+        {
+            comments = await ApiComunicationService.GetComments(GameTitle);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading comments: {ex.Message}");
+        }
+    }
+
+    private async Task CheckUserAuthentication()
+    {
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            isUserAuthenticated = user.Identity.IsAuthenticated;
+            if (isUserAuthenticated)
+            {
+                currentUsername = user.Identity.Name;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error checking user authentication: {ex.Message}");
+        }
+    }
+
+    private async Task RateGame(int rating)
+    {
+        try
+        {
+            currentRating = rating;
+            AddRatingItem temp = new AddRatingItem(currentUsername, GameTitle, rating);
+            await ApiComunicationService.AddRating(temp);
+
+            // Add your logic to handle the rating, e.g., send it to the server
+            await GetAverageRating(); // Update average rating after rating
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error rating game: {ex.Message}");
+        }
+    }
+
+    private void HighlightStars(int rating)
+    {
+        highlightedRating = rating;
+    }
+
+    private void ResetStars()
+    {
+        highlightedRating = 0;
+    }
+
+    private async Task AddComment()
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(newCommentText) && isUserAuthenticated)
+            {
+                var newComment = new AddCommentItem(currentUsername, GameTitle, newCommentText);
+
+                await ApiComunicationService.AddComment(newComment);
+                newCommentText = string.Empty; // Clear the input box
+                await LoadComments(); // Reload comments to include the new one
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error adding comment: {ex.Message}");
+        }
+    }
+
+    private async Task GetAverageRating()
+    {
+        try
+        {
+            IEnumerable<RatingItem> ratingCollection = await ApiComunicationService.GetRatings(GameTitle);
+            if (ratingCollection.Any())
+            {
+                averageRating = ratingCollection.Average(r => r.Rating);
+            }
+            else
+            {
+                averageRating = 0; // Set to 0 if no ratings are available
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting average rating: {ex.Message}");
+        }
     }
 }
 
-<div class="game-detail">
-    @if (game == null)
-    {
-        <p>Loading...</p>
-    }
-    else
-    {
-        <h1>@game.Title</h1>
-        <p>@game.Description</p>
-        <!-- Add more game details here -->
-    }
-</div>
+
+
+
 

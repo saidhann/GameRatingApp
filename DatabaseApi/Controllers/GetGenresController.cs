@@ -5,7 +5,7 @@ namespace DatabaseApi.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class GetGenresController : ControllerBase
+    public class GetGenresController : Controller
     {
         private readonly IMySqlService _mySqlService;
 

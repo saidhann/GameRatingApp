@@ -5,6 +5,7 @@ using Mysqlx.Crud;
 using Org.BouncyCastle.Asn1.X509;
 using System.Data;
 using System.Data.Common;
+using System.Net.Mail;
 
 namespace DatabaseApi.Services
 {
@@ -21,7 +22,6 @@ namespace DatabaseApi.Services
         {
             return this._configuration.GetConnectionString("DefaultConnection");
         }
-
         public void AddUser(LoginPasswordItem logpas)
         {
             using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
@@ -35,6 +35,7 @@ namespace DatabaseApi.Services
         public IEnumerable<TableItem> ShowTables()
         {
             List<TableItem> tableList = new List<TableItem>();
+
             using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
             {
                 con.Open();
@@ -47,11 +48,9 @@ namespace DatabaseApi.Services
                         tableList.Add(tempTableName);
                     }
                 }
-                con.Close();
             }
             return tableList;
         }
-
         public IEnumerable<string> GetAllGenres()
         {
             List<string> genreList = new List<string>();
@@ -71,7 +70,57 @@ namespace DatabaseApi.Services
             }
             return genreList;
         }
-
+        public IEnumerable<CommentItem> GetComments(string gameName)
+        {
+            List<CommentItem> genreList = new List<CommentItem>();
+            using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
+            {
+                con.Open();
+                using (MySqlCommand cmd = new MySqlCommand("SELECT Komentarze.Tresc_komentarza, " +
+                    "Komentarze.Data_dodania, " +
+                    "Uzytkownicy.Login " +
+                    "FROM Komentarze " +
+                    "JOIN Gry ON Komentarze.ID_gry = Gry.ID_gry " +
+                    "JOIN Uzytkownicy ON Komentarze.ID_uzytkownika = Uzytkownicy.ID_uzytkownika " +
+                    $"WHERE Gry.Tytul = '{gameName}'", con))
+                {
+                    MySqlDataReader rdr = cmd.ExecuteReader();
+                    while (rdr.Read())
+                    {
+                        CommentItem tempGenre = new CommentItem(rdr.GetString("Login"),rdr.GetString("Tresc_komentarza"), rdr.GetDateTime("Data_dodania"));
+                        genreList.Add(tempGenre);
+                    }
+                }
+                con.Close();
+            }
+            return genreList;
+        }
+        public IEnumerable<RatingItem> GetRatings(string gameName)
+        {
+            List<RatingItem> genreList = new List<RatingItem>();
+            using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
+            {
+                con.Open();
+                using (MySqlCommand cmd = new MySqlCommand(
+                    "SELECT Uzytkownicy.Login, " +
+                    "Oceny.Ocena, " +
+                    "Oceny.Data_oceny " +
+                    "FROM Oceny " +
+                    "JOIN Gry ON Oceny.ID_gry = Gry.ID_gry " +
+                    "JOIN Uzytkownicy ON Oceny.ID_uzytkownika = Uzytkownicy.ID_uzytkownika " +
+                    $"WHERE Gry.Tytul = '{gameName}'", con))
+                {
+                    MySqlDataReader rdr = cmd.ExecuteReader();
+                    while (rdr.Read())
+                    {
+                        RatingItem tempGenre = new RatingItem(rdr.GetString("Login"),rdr.GetInt32("Ocena"), rdr.GetDateTime("Data_oceny"));
+                        genreList.Add(tempGenre);
+                    }
+                }
+                con.Close();
+            }
+            return genreList;
+        }
         public bool Login(LoginPasswordItem logpas)
         {
             bool answer = false;
@@ -92,7 +141,6 @@ namespace DatabaseApi.Services
             }
             return answer;
         }
-
         public bool Register(LoginPasswordItem logpas)
         {
             bool answer = false;
@@ -113,7 +161,6 @@ namespace DatabaseApi.Services
             }
             return answer;
         }
-
         public IEnumerable<GameItem> SearchGame(GameSearchItem gameSearchItem)
         {
 
@@ -165,7 +212,87 @@ namespace DatabaseApi.Services
             }
             return tableList;
         }
+        public bool AddComment(AddCommentItem comment)
+        {
+            int gameId = -1;
+            int userId = -1;
+            int commentId = -1;
+            bool answer = false;
+            using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
+            {
+                con.Open();
+                MySqlCommand cmd = new MySqlCommand($"SELECT ID_gry FROM Gry WHERE Tytul = '{comment.GameName}'", con);
+                MySqlDataReader rdr = cmd.ExecuteReader();
+                if(rdr.Read()) gameId = rdr.GetInt32("ID_gry");
+                con.Close();
 
+                con.Open();
+                cmd = new MySqlCommand($"SELECT ID_uzytkownika FROM Uzytkownicy WHERE Login = '{comment.Login}'", con);
+                rdr = cmd.ExecuteReader();
+                if(rdr.Read()) userId = rdr.GetInt32("ID_uzytkownika");
+                con.Close() ;
+
+                con.Open();
+                cmd = new MySqlCommand("SELECT IFNULL(MAX(ID_komentarza), 0) FROM Komentarze",con);
+                rdr = cmd.ExecuteReader();
+                if (rdr.Read()) commentId = rdr.GetInt32(0);
+                commentId++;
+                con.Close();
+
+
+                con.Open() ;
+                if (userId < 0 || gameId < 0 || commentId < 0) return false;
+                cmd = new MySqlCommand($"INSERT INTO Komentarze (ID_komentarza, ID_uzytkownika, ID_gry, Tresc_komentarza, Data_dodania) VALUES ('{commentId}','{userId}', '{gameId}', '{comment.Comment}', CURDATE());", con);
+                rdr= cmd.ExecuteReader();
+                answer = true;
+
+                con.Close();
+            }
+            return answer;
+        }
+        public bool AddRating(AddRatingItem rating)
+        {
+            int gameId = -1;
+            int userId = -1;
+            int ratingId = -1;
+            bool answer = false;
+            using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
+            {
+                con.Open();
+                MySqlCommand cmd = new MySqlCommand($"SELECT ID_gry FROM Gry WHERE Tytul = '{rating.GameName}'", con);
+                MySqlDataReader rdr = cmd.ExecuteReader();
+                if (rdr.Read()) gameId = rdr.GetInt32("ID_gry");
+                con.Close();
+
+                con.Open();
+                cmd = new MySqlCommand($"SELECT ID_uzytkownika FROM Uzytkownicy WHERE Login = '{rating.Login}'", con);
+                rdr = cmd.ExecuteReader();
+                if (rdr.Read()) userId = rdr.GetInt32("ID_uzytkownika");
+                con.Close();
+
+                con.Open();
+                cmd = new MySqlCommand("SELECT IFNULL(MAX(ID_oceny), 0) FROM Oceny", con);
+                rdr = cmd.ExecuteReader();
+                if (rdr.Read()) ratingId = rdr.GetInt32(0);
+                ratingId++;
+                con.Close();
+
+                if (userId < 0 || gameId < 0 || ratingId < 0) return false;
+
+                con.Open();
+                cmd = new MySqlCommand($"DELETE FROM Oceny WHERE ID_gry = '{gameId}' AND ID_uzytkownika = '{userId}'", con);
+                rdr = cmd.ExecuteReader();
+                con.Close();
+
+                con.Open();
+                cmd = new MySqlCommand($"INSERT INTO Oceny (ID_oceny, ID_uzytkownika, ID_gry, Ocena, Data_oceny) VALUES ('{ratingId}','{userId}', '{gameId}', '{rating.Rating}', CURDATE());", con);
+                rdr = cmd.ExecuteReader();
+                answer = true;
+
+                con.Close();
+            }
+            return answer;
+        }
 
         // Other database operations (CRUD)
     }

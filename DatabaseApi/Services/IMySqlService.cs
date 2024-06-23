@@ -23,6 +23,14 @@ namespace DatabaseApi.Services
 
         public IEnumerable<GameItem> SearchGame(GameSearchItem gameSearchItem);
 
+        public IEnumerable<CommentItem> GetComments(string gameName);
+
+        public IEnumerable<RatingItem> GetRatings(string gameName);
+
+        public bool AddComment(AddCommentItem comment);
+
+        public bool AddRating(AddRatingItem rating);
+
         // Other database operations (CRUD)
     }
 }
