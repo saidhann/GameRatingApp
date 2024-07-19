@@ -388,6 +388,152 @@ namespace DatabaseApi.Services
             return answer;
         }
 
+        public bool AddGame(AddGameItem game)
+        {
+            bool isAdded = false;
+            int gameId = -1;
+
+            using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
+            {
+                try
+                {
+                    con.Open();
+
+                    // Step 1: Insert into Gry table
+                    MySqlCommand cmd = new MySqlCommand(@"INSERT INTO Gry 
+                        (Tytul, Data_wydania, ID_wydawcy, ID_gatunku, ID_kategorii_wiekowej, Opis) 
+                        VALUES (@Title, @Date, @DeveloperId, @GenreId, @AgeRatingId, @Description);
+                        SELECT LAST_INSERT_ID();", con);
+
+                    cmd.Parameters.AddWithValue("@Title", game.Title);
+                    cmd.Parameters.AddWithValue("@Date", game.Date);
+                    cmd.Parameters.AddWithValue("@DeveloperId", GetDeveloperIdByName(game.Developer));
+                    cmd.Parameters.AddWithValue("@GenreId", GetGenreIdByName(game.Genre));
+                    cmd.Parameters.AddWithValue("@AgeRatingId", GetAgeRatingIdByName(game.Pegi));
+                    cmd.Parameters.AddWithValue("@Description", game.Description);
+
+                    gameId = Convert.ToInt32(cmd.ExecuteScalar());
+
+                    if (gameId <= 0)
+                    {
+                        throw new Exception("Game ID not generated.");
+                    }
+
+                    isAdded = true;
+                }
+                catch (Exception ex)
+                {
+                    // Handle exceptions (logging, throwing, etc.)
+                    Console.WriteLine("Error adding game: " + ex.Message);
+                    isAdded = false;
+                }
+                finally
+                {
+                    con.Close();
+                }
+            }
+
+            return isAdded;
+        }
+
+        public int GetGenreIdByName(string genreName)
+        {
+            int genreId = -1;
+
+            using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
+            {
+                try
+                {
+                    con.Open();
+
+                    MySqlCommand cmd = new MySqlCommand("SELECT ID_gatunku FROM Gatunki WHERE Nazwa_gatunku = @GenreName", con);
+                    cmd.Parameters.AddWithValue("@GenreName", genreName);
+
+                    object result = cmd.ExecuteScalar();
+                    if (result != null)
+                    {
+                        genreId = Convert.ToInt32(result);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Handle exceptions (logging, throwing, etc.)
+                    Console.WriteLine("Error getting genre ID: " + ex.Message);
+                }
+                finally
+                {
+                    con.Close();
+                }
+            }
+
+            return genreId;
+        }
+
+        public int GetAgeRatingIdByName(string ageRating)
+        {
+            int ageRatingId = -1;
+
+            using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
+            {
+                try
+                {
+                    con.Open();
+
+                    MySqlCommand cmd = new MySqlCommand("SELECT ID_kategorii_wiekowej FROM Kategorie_wiekowe WHERE Nazwa_kategorii = @AgeRating", con);
+                    cmd.Parameters.AddWithValue("@AgeRating", ageRating);
+
+                    object result = cmd.ExecuteScalar();
+                    if (result != null)
+                    {
+                        ageRatingId = Convert.ToInt32(result);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Handle exceptions (logging, throwing, etc.)
+                    Console.WriteLine("Error getting age rating ID: " + ex.Message);
+                }
+                finally
+                {
+                    con.Close();
+                }
+            }
+
+            return ageRatingId;
+        }
+
+        public int GetDeveloperIdByName(string developerName)
+        {
+            int developerId = -1;
+
+            using (MySqlConnection con = new MySqlConnection(GetConnectionString()))
+            {
+                try
+                {
+                    con.Open();
+
+                    MySqlCommand cmd = new MySqlCommand("SELECT ID_wydawcy FROM Wydawcy WHERE Nazwa_wydawcy = @DeveloperName", con);
+                    cmd.Parameters.AddWithValue("@DeveloperName", developerName);
+
+                    object result = cmd.ExecuteScalar();
+                    if (result != null)
+                    {
+                        developerId = Convert.ToInt32(result);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Handle exceptions (logging, throwing, etc.)
+                    Console.WriteLine("Error getting developer ID: " + ex.Message);
+                }
+                finally
+                {
+                    con.Close();
+                }
+            }
+
+            return developerId;
+        }
         // Other database operations (CRUD)
     }
 }

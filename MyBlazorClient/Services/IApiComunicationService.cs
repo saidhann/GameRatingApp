@@ -15,5 +15,6 @@ namespace MyBlazorClient.Services
         public Task<IEnumerable<RatingItem>> GetRatings(string gameName);
         public Task<bool> AddComment(AddCommentItem comment);
         public Task<bool> AddRating(AddRatingItem rating);
+        public Task<bool> AddGame(AddGameItem game);
     }
 }

@@ -31,6 +31,8 @@ namespace DatabaseApi.Services
 
         public bool AddRating(AddRatingItem rating);
 
+        public bool AddGame(AddGameItem game);
+
         // Other database operations (CRUD)
     }
 }

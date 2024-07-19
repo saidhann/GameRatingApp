@@ -1,4 +1,6 @@
-﻿
+﻿@inject MyBlazorClient.Services.CustomAuthenticationStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Components.Authorization
+
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">Steem</a>
@@ -11,6 +13,14 @@
     <nav class="flex-column">
         <AuthorizeView>
             <Authorized>
+                @if (IsSaidhan)
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="database">
+                            <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Add Game
+                        </NavLink>
+                    </div>
+                }
             </Authorized>
             <NotAuthorized>
                 <div class="nav-item px-3">
@@ -23,17 +33,48 @@
                         <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Register
                     </NavLink>
                 </div>
+
             </NotAuthorized>
         </AuthorizeView>
     </nav>
 </div>
 @code {
+    private bool isUserAuthenticated;
     private bool collapseNavMenu = true;
 
     private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+    private bool IsSaidhan { get; set; }
 
     private void ToggleNavMenu()
     {
         collapseNavMenu = !collapseNavMenu;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        UpdateAuthenticationState(authState);
+
+        // Subscribe to authentication state changes
+        AuthStateProvider.AuthenticationStateChanged += HandleAuthenticationStateChanged;
+    }
+
+    private void UpdateAuthenticationState(AuthenticationState authState)
+    {
+        IsSaidhan = authState.User.Identity.Name == "saidhan";
+    }
+
+    // Handle authentication state changes
+    private void HandleAuthenticationStateChanged(Task<AuthenticationState> task)
+    {
+        var authState = task.Result;
+        UpdateAuthenticationState(authState);
+        StateHasChanged(); // Forces the component to re-render
+    }
+
+    // Clean up event handler
+    public void Dispose()
+    {
+        AuthStateProvider.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
     }
 }

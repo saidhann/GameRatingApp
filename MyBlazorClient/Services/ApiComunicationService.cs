@@ -109,5 +109,10 @@ namespace MyBlazorClient.Services
             }
             return false;
         }
+
+        public async Task<bool> AddGame(AddGameItem game)
+        {
+            return true;
+        }
     }
 }
